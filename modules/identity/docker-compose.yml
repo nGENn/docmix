@@ -1,0 +1,55 @@
+services:
+  keycloak:
+    container_name: identity_keycloak
+    restart: unless-stopped
+    build:
+      context: ./build
+      dockerfile: Dockerfile
+    image: keycloak
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.identity-normal.rule=Host(`${DOMAIN}`)
+      - traefik.http.routers.identity-normal.entrypoints=websecure
+      - traefik.http.routers.identity-normal.tls=true
+      - traefik.http.routers.identity-normal.tls.certresolver=letsencrypt
+      - traefik.http.services.identity-normal.loadbalancer.server.port=8080
+    environment:
+      - KEYCLOAK_ADMIN=${KC_USER}
+      - KEYCLOAK_ADMIN_PASSWORD=${KC_PASSWORD}
+    command:
+      - --proxy-headers=xforwarded
+      - --hostname-strict=false
+      - --hostname=${DOMAIN}
+      - --db-url=jdbc:postgresql://db:5432/keycloak?ssl=allow
+      - --db-username=${DB_USER}
+      - --db-password=${DB_PASSWORD}
+      - --http-enabled=true
+      - --db=postgres
+    depends_on:
+      - db
+    networks:
+      - db
+      - dmz-internal
+
+  db:
+    container_name: identity_postgres
+    restart: unless-stopped
+    image: postgres:17
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_DB: keycloak
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    networks:
+      - db
+
+volumes:
+  db_data:
+
+
+networks:
+  dmz-internal:
+    external: true
+  app:
+  db:

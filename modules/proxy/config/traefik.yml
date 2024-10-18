@@ -1,0 +1,38 @@
+api:
+  dashboard: true
+  insecure: false
+
+entryPoints:
+  web:
+    address: :80
+    http:
+      redirections:
+        entryPoint:
+          to: websecure
+          scheme: https
+  websecure:
+    address: :443
+  metrics:
+    address: :8000
+
+metrics:
+  prometheus: 
+    entryPoint: metrics
+    addEntryPointsLabels: true
+
+providers:
+  docker:
+    exposedByDefault: false
+    network: dmz-internal
+  file:
+    directory: /dyn
+
+certificatesResolvers:
+  letsencrypt:
+    acme:
+      storage: /letsencrypt/acme.json
+      httpChallenge:
+        entryPoint: web
+
+log:
+  level: trace

@@ -1,0 +1,77 @@
+#!/bin/bash
+
+### Load helper functions
+source ./functions.sh
+
+### Global Variables
+MODULES=(proxy identity file crm git)
+
+### Global Functions
+start_modules() {
+    for module in ${MODULES[@]}; do
+        echo "Starting $module"
+        module_start $module
+    done
+}
+
+stop_modules() {
+    for module in ${MODULES[@]}; do
+        module_stop $module
+    done
+}
+
+recreate_modules() {
+    for module in ${MODULES[@]}; do
+        module_recreate $module
+    done
+}
+
+update_modules() {
+    for module in ${MODULES[@]}; do
+        module_update $module
+    done
+}
+
+### Do work
+if [ "$1" == "init" ]; then
+    source ./init
+    init_proxy
+    init_identity
+    init_file
+    init_crm
+    init_git
+    exit 0
+fi
+
+if [ -z "$2" ]; then
+    if [ "$1" == "start" ]; then
+        start_modules
+    elif [ "$1" == "stop" ]; then
+        stop_modules
+    elif [ "$1" == "recreate" ]; then
+        recreate_modules
+    elif [ "$1" == "update" ]; then
+        update_modules
+    else
+        echo "Usage: $0 {start|stop|recreate|update} [module]"
+        exit 1
+    fi
+else
+    if item_in_list $2 $MODULES; then
+        if [ "$1" == "start" ]; then
+            module_start $2
+        elif [ "$1" == "stop" ]; then
+            module_stop $2
+        elif [ "$1" == "recreate" ]; then
+            module_recreate $2
+        elif [ "$1" == "update" ]; then
+            module_update $2
+        else
+            echo "Usage: $0 {start|stop|recreate|update} [module]"
+            exit 1
+        fi
+    else
+        echo "Module not found '$2'"
+        exit 1
+    fi
+fi

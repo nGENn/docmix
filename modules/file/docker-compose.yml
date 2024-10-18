@@ -1,0 +1,81 @@
+services:
+  db:
+    container_name: file_postgres
+    image: postgres:17
+    restart: unless-stopped
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_DB: nextcloud
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    networks:
+      - db
+
+  app-cron:
+    image: nextcloud:latest
+    container_name: file_nextcloud_cron
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: nextcloud
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_HOST: db
+      NEXTCLOUD_ADMIN_USER: ${ADMIN_USER}
+      NEXTCLOUD_ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+      REDIS_host: redis
+    volumes:
+      - nextcloud_html:/var/www/html
+    entrypoint: /cron.sh
+    networks:
+      - db
+      - redis
+
+  redis:
+    image: redis:latest
+    container_name: file_redis
+    restart: unless-stopped
+    networks:
+      - redis
+
+  app:
+    container_name: file_nextcloud
+    image: nextcloud:latest
+    restart: unless-stopped
+    volumes:
+      - nextcloud_html:/var/www/html
+    environment:
+      POSTGRES_DB: nextcloud
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_HOST: db
+      NEXTCLOUD_ADMIN_USER: ${ADMIN_USER}
+      NEXTCLOUD_ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+      REDIS_HOST: redis
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.file.rule=Host(`${DOMAIN}`)
+      - traefik.http.routers.file.entrypoints=websecure
+      - traefik.http.routers.file.tls.certresolver=letsencrypt
+      - traefik.http.routers.file.middlewares=nextcloud-dav,nextcloud-sts
+      - traefik.http.middlewares.nextcloud-dav.replacepathregex.regex=^/.well-known/ca(l|rd)dav
+      - traefik.http.middlewares.nextcloud-dav.replacepathregex.replacement=/remote.php/dav/
+      - traefik.http.middlewares.nextcloud-sts.headers.stsseconds=31536000
+      - traefik.http.middlewares.nextcloud-sts.headers.stsIncludeSubdomains=false
+      - traefik.http.middlewares.nextcloud-sts.headers.stsPreload=true
+      - traefik.http.services.file.loadbalancer.server.port=80
+    networks:
+      - dmz-internal
+      - db
+      - redis
+
+volumes:
+  nextcloud_html:
+  postgres_data:
+
+
+networks:
+  db:
+  redis:
+  dmz-internal:
+    external: true
