@@ -141,7 +141,7 @@ In the config folder, you will find a script called cmd. This script initializes
 ./cmd init
 ```
 
-- `Domain` the domain will be the basis domain. every module will be available under the subdomain <module_name>.<domain>
+- `Domain` the domain will be the basis domain. every module will be available under the subdomain `<module_name>.<domain>`
 - `Email` the email is at the moment only used for letsencrypt notifiactions about expiring certificates.
 
 ### 4. Start the Reverse Proxy
