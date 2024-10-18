@@ -66,6 +66,8 @@ else
             module_recreate $2
         elif [ "$1" == "update" ]; then
             module_update $2
+        elif [ "$1" == "log" ]; then
+            module_log $2
         else
             echo "Usage: $0 {start|stop|recreate|update} [module]"
             exit 1

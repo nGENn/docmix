@@ -49,8 +49,14 @@ module_stop() {
 module_update() {
     local module_name="$1"
 
-    docker compose --env-file ../../docmix-config/modules/$module_name/.env -f ../modules/$module_name/docker-compose.yml pull --
+    docker compose --env-file ../../docmix-config/modules/$module_name/.env -f ../modules/$module_name/docker-compose.yml pull
     module_start "$module_name"
+}
+
+module_log() {
+    local module_name="$1"
+
+    docker compose --env-file ../../docmix-config/modules/$module_name/.env -f ../modules/$module_name/docker-compose.yml logs -f
 }
 
 generate_password() {
