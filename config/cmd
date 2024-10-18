@@ -34,7 +34,7 @@ update_modules() {
 
 ### Do work
 if [ "$1" == "init" ]; then
-    source ./init
+    source ./init.sh
     init_proxy
     init_identity
     init_file
