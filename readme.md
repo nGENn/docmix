@@ -15,7 +15,7 @@ Docmix is a solution that automates the setup and configuration of applications,
 ## Why Docmix? Vision
 Docmix was created to address the growing need for simple, secure, and scalable setups of modern applications. By reducing the technical barriers to entry, Docmix allows users to deploy applications that follow best practices without needing in-depth technical knowledge.
 
-The project’s vision revolves around four main pillars: Security, Convenience, Backup, and using the Best-of-Breed tools.
+The project’s vision revolves around four main pillars: Security, convenience, daily backup and restore tests, and using the Best-of-Breed tools.
 
 ### Security
 Security is a top priority in the Docmix setup. By default, all applications are configured to run in the most secure manner. With built-in SSO functionality, Docmix reduces the need for multiple logins, thereby lowering the attack surface associated with managing credentials across different platforms.
@@ -30,9 +30,13 @@ Docmix's core objective is to make application management easy for users, regard
 ### Backup (Coming Soon)
 Data loss can be a significant concern in modern applications. Docmix makes sure that robust backup mechanisms are in place from the start. With minimal configuration, users can set up automatic backups that ensure no data is lost in the event of a failure or outage.
 
-Automated backups scheduled regularly to ensure data is consistently protected.
-Versioned backups allow you to restore data to any point in time.
-Encrypted backup storage adds an extra layer of protection to sensitive data.
+- Automated backups scheduled regularly to ensure data is consistently protected.
+- Versioned backups allow you to restore data to any point in time.
+- Encrypted backup storage adds an extra layer of protection to sensitive data.
+- Daily full backup restore test, to be safe that the backup is working
+
+## Roadmap
+The idea is to add one new application per month. More to come.
 
 ## Modules
 
