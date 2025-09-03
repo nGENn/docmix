@@ -1,0 +1,72 @@
+services:
+  fleet:
+    image: fleetdm/fleet:latest
+    # image: fleet/test
+    # build:
+    #   context: fleet
+    #   dockerfile: Dockerfile-desktop-linux
+    container_name: fleet_fleet
+    restart: unless-stopped
+    deploy:
+      replicas: 1
+    environment:
+      FLEET_LICENSE_KEY: ${LICENSE}
+      FLEET_MYSQL_ADDRESS: db:3306
+      FLEET_MYSQL_DATABASE: fleet
+      FLEET_MYSQL_USERNAME: ${DB_USER}
+      FLEET_MYSQL_PASSWORD: ${DB_PASSWORD}
+      FLEET_REDIS_ADDRESS: redis:6379
+      FLEET_SERVER_TLS: false
+      FLEET_LOGGING_DEBUG: true
+      FLEET_UPGRADES_ALLOW_MISSING_MIGRATIONS: 1
+      FLEET_SERVER_PRIVATE_KEY: ${PRIVATE_KEY}
+    networks:
+      - dmz-internal
+      - app
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.fleet.rule=Host(`${DOMAIN}`)
+      - traefik.http.routers.fleet.entrypoints=websecure
+      - traefik.http.routers.fleet.tls.certresolver=letsencrypt
+      - traefik.http.services.fleet.loadbalancer.server.port=8080
+
+  db:
+    image: mysql:8.0
+    restart: unless-stopped
+    container_name: fleet_mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
+      MYSQL_DATABASE: fleet
+      MYSQL_USER: ${DB_USER}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - mysql_data:/var/lib/mysql
+    networks:
+      - app
+    healthcheck:
+      interval: 20s
+      test: mysqladmin -p$$DB_ROOT_PASS ping -h localhost
+      start_period: 10s
+      timeout: 10s
+      retries: 3
+
+  redis:
+    image: redis:7
+    restart: unless-stopped
+    container_name: fleet_redis
+    networks:
+      - app
+
+networks:
+  dmz-internal:
+    external: true
+  app:
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.31.6.0/28
+
+
+volumes:
+  mysql_data:

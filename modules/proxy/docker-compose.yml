@@ -1,0 +1,46 @@
+services:
+  traefik:
+    # Naming: container-name plus product
+    container_name: proxy_traefik
+    # The official v2 Traefik docker image
+    image: traefik:latest
+    # Startet neu wenn es abstürzt und bei Server neustart
+    restart: unless-stopped
+    command:
+      - --certificatesresolvers.myresolver.acme.email=${LETSENCRYPT_EMAIL}
+    labels:
+      # Traefik configuration for the dashboard
+      - traefik.enable=true
+      - traefik.http.routers.reverse-proxy.rule=Host(`${DOMAIN}`)
+      - traefik.http.routers.reverse-proxy.entrypoints=websecure
+      - traefik.http.routers.reverse-proxy.tls=true
+      - traefik.http.routers.reverse-proxy.service=api@internal
+      - traefik.http.routers.reverse-proxy.middlewares=auth-dashboard
+      - traefik.http.routers.reverse-proxy.tls.certresolver=letsencrypt
+      - traefik.http.middlewares.auth-dashboard.basicauth.users=${DASHBOARD_USER}
+    ports:
+      # The HTTP port
+      - published: 80
+        target: 80
+      - published: 443
+        target: 443
+    volumes:
+      # Config for all Traefik Parameters
+      - ./config/traefik.yml:/traefik.yml
+      # Storage for Letsencrypt generated ACME Certificates
+      - traefik_letsencrypt:/letsencrypt:rw
+      # So that Traefik can listen to the Docker events
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - dmz-internal
+      - prometheus
+
+volumes:
+  traefik_letsencrypt:
+
+
+networks:
+  dmz-internal:
+    external: true
+  prometheus:
+    external: true

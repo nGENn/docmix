@@ -1,0 +1,169 @@
+---
+version: '3.8'
+
+x-shared:
+  zammad-service: &zammad-service
+    networks:
+      - app
+    environment: &zammad-environment
+      MEMCACHE_SERVERS: ${MEMCACHE_SERVERS:-ticket_zammad_memcached:11211}
+      POSTGRESQL_DB: ${POSTGRES_DB:-zammad}
+      POSTGRESQL_HOST: ${POSTGRES_HOST:-zammad-postgresql}
+      POSTGRESQL_USER: ${POSTGRES_USER:-zammad}
+      POSTGRESQL_PASS: ${POSTGRES_PASS:-zammad}
+      POSTGRESQL_PORT: ${POSTGRES_PORT:-5432}
+      POSTGRESQL_OPTIONS: ${POSTGRESQL_OPTIONS:-?pool=50}
+      POSTGRESQL_DB_CREATE:
+      REDIS_URL: ${REDIS_URL:-redis://zammad-redis:6379}
+      S3_URL: # Backup settings
+
+      BACKUP_DIR: "${BACKUP_DIR:-/var/tmp/zammad}"
+      BACKUP_TIME: "${BACKUP_TIME:-03:00}"
+      HOLD_DAYS: "${HOLD_DAYS:-10}"
+      TZ: "${TZ:-Europe/Berlin}"
+      # Allow passing in these variables via .env:
+      AUTOWIZARD_JSON:
+      AUTOWIZARD_RELATIVE_PATH:
+      ELASTICSEARCH_ENABLED:
+      ELASTICSEARCH_HOST:
+      ELASTICSEARCH_PORT:
+      ELASTICSEARCH_SCHEMA:
+      ELASTICSEARCH_NAMESPACE:
+      ELASTICSEARCH_REINDEX:
+      ELASTICSEARCH_SSL_VERIFY:
+      NGINX_PORT:
+      NGINX_CLIENT_MAX_BODY_SIZE:
+      NGINX_SERVER_NAME:
+      NGINX_SERVER_SCHEME: https
+      RAILS_TRUSTED_PROXIES:
+      ZAMMAD_WEB_CONCURRENCY:
+      ZAMMAD_SESSION_JOBS:
+      ZAMMAD_PROCESS_SCHEDULED:
+      ZAMMAD_PROCESS_DELAYED_JOBS_WORKERS:
+        # Variables used by ngingx-proxy container for reverse proxy creations
+
+        # # for docs refer to https://github.com/nginx-proxy/nginx-proxy
+        # VIRTUAL_HOST:
+        # VIRTUAL_PORT:
+        #   # Variables used by acme-companion for retrieval of LetsEncrypt certificate
+
+
+    image: ${IMAGE_REPO:-ghcr.io/zammad/zammad}:${VERSION:-6.4.1-45}
+    restart: ${RESTART:-always}
+    volumes:
+      - zammad_storage:/opt/zammad/storage
+    depends_on:
+      - zammad-memcached
+      - zammad-postgresql
+      - zammad-redis
+
+services:
+
+  zammad-backup:
+    <<: *zammad-service
+    container_name: ticket_zammad_service
+    command: [ "zammad-backup" ]
+    volumes:
+      - zammad_backup:/var/tmp/zammad
+      - zammad_storage:/opt/zammad/storage:ro
+    user: 0:0
+
+  zammad-elasticsearch:
+    container_name: ticket_zammad_elasticsearch
+    image: bitnami/elasticsearch:${ELASTICSEARCH_VERSION:-8.17.1}
+    restart: ${RESTART:-always}
+    networks:
+      - app
+    volumes:
+      - elasticsearch_data:/bitnami/elasticsearch/data
+
+  zammad-init:
+    <<: *zammad-service
+    container_name: ticket_zammad_init
+    command: [ "zammad-init" ]
+    depends_on:
+      - zammad-postgresql
+    restart: on-failure
+    user: 0:0
+
+  zammad-memcached:
+    container_name: ticket_zammad_memcached
+    command: memcached -m 256M
+    image: memcached:${MEMCACHE_VERSION:-1.6.36-alpine}
+    networks:
+      - app
+    restart: ${RESTART:-always}
+
+  zammad-nginx:
+    <<: *zammad-service
+    container_name: ticket_zammad_nginx
+    command: [ "zammad-nginx" ]
+    expose:
+      - "${NGINX_PORT:-8080}"
+    networks:
+      - app
+      - dmz-internal
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.ticket.rule=Host(`${DOMAIN}`)
+      - traefik.http.routers.ticket.entrypoints=websecure
+      - traefik.http.routers.ticket.tls=true
+      - traefik.http.routers.ticket.tls.certresolver=letsencrypt
+      - traefik.http.services.ticket.loadbalancer.server.port=8080
+    depends_on:
+      - zammad-railsserver
+
+  zammad-postgresql:
+    container_name: ticket_zammad_postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-zammad_production}
+      POSTGRES_USER: ${POSTGRES_USER:-zammad}
+      POSTGRES_PASSWORD: ${POSTGRES_PASS:-zammad}
+    image: postgres:${POSTGRES_VERSION:-17.2-alpine}
+    restart: ${RESTART:-always}
+    networks:
+      - app
+    volumes:
+      - postgresql_data:/var/lib/postgresql/data
+
+  zammad-railsserver:
+    <<: *zammad-service
+    container_name: ticket_zammad_railsserver
+    command: [ "zammad-railsserver" ]
+
+  zammad-redis:
+    container_name: ticket_zammad_redis
+    image: redis:${REDIS_VERSION:-7.4.2-alpine}
+    restart: ${RESTART:-always}
+    networks:
+      - app
+    volumes:
+      - redis_data:/data
+
+  zammad-scheduler:
+    <<: *zammad-service
+    container_name: ticket_zammad_scheduler
+    command: [ "zammad-scheduler" ]
+
+  zammad-websocket:
+    <<: *zammad-service
+    container_name: ticket_zammad_websocket
+    command: [ "zammad-websocket" ]
+
+volumes:
+  elasticsearch_data:
+  postgresql_data:
+  redis_data:
+  zammad_backup:
+  zammad_storage:
+
+
+networks:
+  dmz-internal:
+    external: true
+  app:
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.31.10.0/28

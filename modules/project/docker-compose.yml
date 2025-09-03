@@ -1,0 +1,169 @@
+x-op-restart-policy: &restart_policy
+  restart: unless-stopped
+
+    # x-op-image: &image
+    #   build: 
+    #     context: ./build/openproject
+    #     dockerfile: Dockerfile
+
+x-op-app: &app
+  <<: [ *restart_policy ]
+  environment:
+    - RAILS_CACHE_STORE=memcache
+    - OPENPROJECT_CACHE__MEMCACHE__SERVER=cache:11211
+    - OPENPROJECT_RAILS__RELATIVE__URL__ROOT=${OPENPROJECT_RAILS__RELATIVE__URL__ROOT:-}
+    - OPENPROJECT_HOST__NAME=${DOMAIN}
+    - DATABASE_URL=postgres://postgres:${POSTGRES_PASSWORD}@db/openproject?pool=20&encoding=unicode&reconnect=true
+    - RAILS_MIN_THREADS=4
+    - RAILS_MAX_THREADS=16
+    # set to true to enable the email receiving feature. See ./docker/cron for more options
+    - IMAP_ENABLED=${IMAP_ENABLED:-false}
+    - OPENPROJECT_OPENID__CONNECT_KEYCLOAK_DISPLAY__NAME=Keycloak
+    - OPENPROJECT_OPENID__CONNECT_KEYCLOAK_HOST=${KEYCLOAK_DOMAIN}
+    - OPENPROJECT_OPENID__CONNECT_KEYCLOAK_IDENTIFIER=project
+    - OPENPROJECT_OPENID__CONNECT_KEYCLOAK_SECRET=${KEYCLOAK_CLIENT_SECRET}
+    - OPENPROJECT_OPENID__CONNECT_KEYCLOAK_AUTHORIZATION__ENDPOINT=/realms/docmix/protocol/openid-connect/auth
+    - OPENPROJECT_OPENID__CONNECT_KEYCLOAK_TOKEN__ENDPOINT=/realms/docmix/protocol/openid-connect/token
+    - OPENPROJECT_OPENID__CONNECT_KEYCLOAK_USERINFO__ENDPOINT=/realms/docmix/protocol/openid-connect/userinfo
+
+    # uncomment to disable native login (should give an keycloak account admin right's before)
+    - OPENPROJECT_DISABLE__PASSWORD__LOGIN=${DISABLE_PASSWORDS}
+    - OMNIAUTH_DIRECT_LOGIN_PROVIDER=keycloak
+  volumes:
+    - openproject_data:/var/openproject/assets
+
+services:
+  db:
+    image: postgres:17
+    container_name: project_postgres
+    <<: *restart_policy
+    stop_grace_period: "3s"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backups:/backups
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: openproject
+    networks:
+      - backend
+
+  cache:
+    container_name: project_cache
+    image: memcached
+    <<: *restart_policy
+    networks:
+      - backend
+
+  proxy:
+    container_name: project_proxy
+    <<: [ *restart_policy ]
+    build:
+      context: ./build/proxy/
+      args:
+        APP_HOST: project_web
+    depends_on:
+      - web
+    networks:
+      - frontend
+      - dmz-internal
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.project.rule=Host(`${DOMAIN}`)
+      - traefik.http.routers.project.entrypoints=websecure
+      - traefik.http.routers.project.tls=true
+      - traefik.http.routers.project.tls.certresolver=letsencrypt
+      - traefik.http.services.project.loadbalancer.server.port=80
+    volumes:
+      - proxy_data:/data
+      - proxy_config:/config
+
+  web:
+    <<: *app
+    container_name: project_web
+      # image: openproject/openproject:${OPENPROJECT_VERSION:-16}
+    command: "./docker/prod/web"
+    networks:
+      - frontend
+      - backend
+    depends_on:
+      - db
+      - cache
+      - seeder
+    labels:
+      - autoheal=true
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8080${OPENPROJECT_RAILS__RELATIVE__URL__ROOT:-}/health_checks/default" ]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 30s
+    volumes:
+      - web_pgdata:/var/openproject/pgdata
+      - web_assets:/var/openproject/assets
+
+  worker:
+    <<: *app
+    container_name: project_worker
+    image: openproject/openproject:${OPENPROJECT_VERSION:-16}
+    command: "./docker/prod/worker"
+    networks:
+      - backend
+    depends_on:
+      - db
+      - cache
+      - seeder
+    volumes:
+      - worker_pgdata:/var/openproject/pgdata
+      - worker_assets:/var/openproject/assets
+
+  cron:
+    <<: *app
+    container_name: project_cron
+    image: openproject/openproject:${OPENPROJECT_VERSION:-16}
+    command: "./docker/prod/cron"
+    networks:
+      - backend
+    depends_on:
+      - db
+      - cache
+      - seeder
+    volumes:
+      - cron_pgdata:/var/openproject/pgdata
+      - cron_assets:/var/openproject/assets
+
+  seeder:
+    <<: *app
+    container_name: project_seeder
+    image: openproject/openproject:${OPENPROJECT_VERSION:-16}
+    command: "./docker/prod/seeder"
+    restart: on-failure
+    networks:
+      - backend
+
+networks:
+  dmz-internal:
+    external: true
+  frontend:
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.31.13.0/28
+  backend:
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.31.13.16/28
+
+volumes:
+  openproject_data:
+  postgres_data:
+  proxy_data:
+  proxy_config:
+  worker_pgdata:
+  worker_assets:
+  cron_pgdata:
+  cron_assets:
+  web_pgdata:
+  web_assets:

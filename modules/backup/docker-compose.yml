@@ -1,0 +1,17 @@
+services:
+  borg:
+    image: borg
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: backup_borg
+    restart: unless-stopped
+    network_mode: host
+    volumes:
+      - /:/system
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ../../../docmix-config/modules/backup/borg-base:/borg-base
+      - ../../../docmix-config/modules/backup/config.yaml:/etc/borgmatic/config.yaml
+      - ../../../docmix-config/modules/backup/borg_passphrase:/borg_passphrase:ro
+      - ../../../docmix-config/modules/backup/ssh:/root/.ssh
+      - ../../../docmix-config/modules/backup/borgmatic_cronjob:/etc/cron.d/borgmatic_cronjob

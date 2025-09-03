@@ -1,0 +1,120 @@
+services:
+  eramba:
+    container_name: grc_eramba
+    image: ghcr.io/eramba/eramba-enterprise:latest
+    # image: ghcr.io/eramba/eramba:latest
+    restart: unless-stopped
+    volumes:
+      - grc_eramba_data:/var/www/eramba/app/upgrade/data
+      - grc_eramba_app:/var/www/eramba
+      - grc_eramba_logs:/var/www/eramba/app/upgrade/logs
+      - ../../../docmix-config/modules/grc/apache/security.conf:/etc/apache2/conf-available/security.conf
+      - ../../../docmix-config/modules/grc/apache/ports.conf:/etc/apache2/ports.conf
+      - ../../../docmix-config/modules/grc/apache/vhost.conf:/etc/apache2/sites-available/000-default.conf
+      - ../../../docmix-config/modules/grc/crontab:/etc/cron.d/eramba-crontab
+    environment:
+      DB_HOST: ${DB_HOST}
+      DB_DATABASE: ${DB_DATABASE}
+      DB_USERNAME: ${DB_USERNAME}
+      DB_PASSWORD: ${DB_PASSWORD}
+      CACHE_URL: ${CACHE_URL}
+      USE_PROXY: ${USE_PROXY}
+      PROXY_HOST: ${PROXY_HOST}
+      PROXY_PORT: ${PROXY_PORT}
+      USE_PROXY_AUTH: ${USE_PROXY_AUTH}
+      PROXY_AUTH_USER: ${PROXY_AUTH_USER}
+      PROXY_AUTH_PASS: ${PROXY_AUTH_PASS}
+      PUBLIC_ADDRESS: ${PUBLIC_ADDRESS}
+      DOCKER_DEPLOYMENT: ${DOCKER_DEPLOYMENT}
+      LDAPTLS_REQCERT: ${LDAPTLS_REQCERT}
+    networks:
+      - db
+      - dmz-internal
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.grc.rule=Host(`${DOMAIN}`)
+      - traefik.http.routers.grc.entrypoints=websecure
+      - traefik.http.routers.grc.tls.certresolver=letsencrypt
+      - traefik.http.middlewares.grc.forwardauth.trustForwardHeader=true
+      - traefik.http.services.grc.loadbalancer.server.port=80
+
+  cron:
+    container_name: grc_cron
+    image: ghcr.io/eramba/eramba-enterprise:latest
+    # image: ghcr.io/eramba/eramba:latest
+    command: [ "cron", "-f" ]
+    entrypoint: [ "/docker-cron-entrypoint.sh" ]
+    restart: unless-stopped
+    volumes:
+      - grc_eramba_data:/var/www/eramba/app/upgrade/data
+      - grc_eramba_app:/var/www/eramba
+      - grc_eramba_logs:/var/www/eramba/app/upgrade/logs
+      - ../../../docmix-config/modules/grc/docker-cron-entrypoint.sh:/docker-cron-entrypoint.sh
+      - ../../../docmix-config/modules/grc/crontab:/etc/cron.d/eramba-crontab
+      - ../../../docmix-config/modules/grc/.env:/var/www/docker.env
+    environment:
+      DB_HOST: ${DB_HOST}
+      DB_DATABASE: ${DB_DATABASE}
+      DB_USERNAME: ${DB_USERNAME}
+      DB_PASSWORD: ${DB_PASSWORD}
+      CACHE_URL: ${CACHE_URL}
+      USE_PROXY: ${USE_PROXY}
+      PROXY_HOST: ${PROXY_HOST}
+      PROXY_PORT: ${PROXY_PORT}
+      USE_PROXY_AUTH: ${USE_PROXY_AUTH}
+      PROXY_AUTH_USER: ${PROXY_AUTH_USER}
+      PROXY_AUTH_PASS: ${PROXY_AUTH_PASS}
+      PUBLIC_ADDRESS: ${PUBLIC_ADDRESS}
+      DOCKER_DEPLOYMENT: ${DOCKER_DEPLOYMENT}
+      LDAPTLS_REQCERT: ${LDAPTLS_REQCERT}
+    networks:
+      - db
+    depends_on:
+      - eramba
+
+  redis:
+    container_name: grc_redis
+    image: redis:latest
+    restart: unless-stopped
+    networks:
+      - db
+
+  mysql:
+    container_name: grc_mysql
+    image: mysql:8.0-oracle
+    command: [ "mysqld", "--disable-log-bin" ]
+    restart: unless-stopped
+    volumes:
+      - grc_mysql_data:/var/lib/mysql
+      - ../../../docmix-config/modules/grc/mysql/conf.d:/etc/mysql/conf.d
+      - ../../../docmix-config/modules/grc/mysql/entrypoint:/docker-entrypoint-initdb.d
+    environment:
+      MYSQL_DATABASE: ${DB_DATABASE}
+      MYSQL_USER: ${DB_USERNAME}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+    networks:
+      - db
+
+networks:
+  dmz-internal:
+    external: true
+  app:
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.31.7.0/28
+  db:
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.31.7.16/28
+
+
+volumes:
+  grc_eramba_data:
+  grc_eramba_app:
+  grc_eramba_logs:
+  grc_mysql_data:

@@ -1,0 +1,89 @@
+services:
+  snipe:
+    image: snipe/snipe-it:${APP_VERSION:-latest}
+    container_name: asset_snipe
+    restart: unless-stopped
+    volumes:
+      - snipe_storage:/var/lib/snipeit
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.asset.rule=Host(`${DOMAIN}`)
+      - traefik.http.routers.asset.entrypoints=websecure
+      - traefik.http.routers.asset.tls=true
+      - traefik.http.routers.asset.tls.certresolver=letsencrypt
+      - traefik.http.services.asset.loadbalancer.server.port=80
+    ports:
+      - "${APP_PORT:-8000}:80"
+    networks:
+      - dmz-internal
+      - app
+    depends_on:
+      db:
+        condition: service_healthy
+        restart: true
+    environment:
+      DOMAIN: $DOMAIN
+      DB_USERNAME: $DB_USERNAME
+      DB_PASSWORD: $DB_PASSWORD
+      DB_DATABASE: $DB_DATABASE
+      DB_CONNECTION: $DB_CONNECTION
+      DB_HOST: $DB_HOST
+      DB_PORT: $DB_PORT
+      DB_CHARSET: $DB_CHARSET
+      DB_COLLATION: $DB_COLLATION
+      MYSQL_ROOT_PASSWORD: $MYSQL_ROOT_PASSWORD
+      APP_ENV: $APP_ENV
+      APP_DEBUG: $APP_DEBUG
+      APP_URL: $APP_URL
+      APP_TIMEZONE: $APP_TIMEZONE
+      APP_LOCALE: $APP_LOCALE
+      MAX_RESULTS: $MAX_RESULTS
+      PRIVATRE_FILESYSTEM_DISK: $PRIVATRE_FILESYSTEM_DISK
+      PUBLIC_FILESYSTEM_DISK: $PUBLIC_FILESYSTEM_DISK
+      MAIL_MAILER: $MAIL_MAILER
+      MAIL_HOST: $MAIL_HOST
+      MAIL_PORT: $MAIL_PORT
+      MAIL_USERNAME: $MAIL_USERNAME
+      MAIL_PASSWORD: $MAIL_PASSWORD
+        # MAIL_ENCRYPTION: $MAIL_ENCRYPTION
+      MAIL_FROM_ADDR: $MAIL_FROM_ADDR
+      MAIL_FROM_NAME: $MAIL_FROM_NAME
+      MAIL_REPLYTO_ADDR: $MAIL_REPLYTO_ADDR
+      MAIL_REPLYTO_NAME: $MAIL_REPLYTO_NAME
+      APP_KEY: $APP_KEY
+      LOG_CHANNEL: $LOG_CHANNEL
+
+  db:
+    image: mariadb:11.5.2
+    container_name: asset_db
+    restart: unless-stopped
+    volumes:
+      - db_data:/var/lib/mysql
+    environment:
+      MYSQL_DATABASE: ${DB_DATABASE}
+      MYSQL_USER: ${DB_USERNAME}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+    networks:
+      - app
+    healthcheck:
+      # https://mariadb.com/kb/en/using-healthcheck-sh/#compose-file-example
+      test: [ "CMD", "healthcheck.sh", "--connect", "--innodb_initialized" ]
+      interval: 5s
+      timeout: 1s
+      retries: 5
+
+volumes:
+  db_data:
+  snipe_storage:
+
+
+networks:
+  dmz-internal:
+    external: true
+  app:
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.31.3.0/28

@@ -1,0 +1,90 @@
+#!/bin/bash
+
+### Load helper functions
+source ./functions.sh
+
+### Global Variables
+MODULES=(proxy id file crm git)
+
+### Global Functions
+start_modules() {
+    for module in ${MODULES[@]}; do
+        echo "Starting $module"
+        module_start $module
+    done
+}
+
+stop_modules() {
+    for module in ${MODULES[@]}; do
+        module_stop $module
+    done
+}
+
+recreate_modules() {
+    for module in ${MODULES[@]}; do
+        module_recreate $module
+    done
+}
+
+update_modules() {
+    for module in ${MODULES[@]}; do
+        module_update $module
+    done
+}
+
+### Do work
+if [ "$1" == "init" ]; then
+    source ./init.sh
+    init_proxy
+    init_id
+    init_file
+    init_crm
+    init_git
+    init_time
+    init_grc
+    init_fleet
+    init_infra
+    init_ticket
+    init_asset
+    init_pass
+    exit 0
+fi
+
+if [ -z "$2" ]; then
+    if [ "$1" == "start" ]; then
+        start_modules
+    elif [ "$1" == "stop" ]; then
+        stop_modules
+    elif [ "$1" == "recreate" ]; then
+        recreate_modules
+    elif [ "$1" == "update" ]; then
+        update_modules
+    else
+        echo "Usage: $0 {start|stop|recreate|update|upgrade|log|config} [module]"
+        exit 1
+    fi
+else
+    if item_in_list $2 $MODULES; then
+        if [ "$1" == "start" ]; then
+            module_start $2
+        elif [ "$1" == "stop" ]; then
+            module_stop $2
+        elif [ "$1" == "recreate" ]; then
+            module_recreate $2
+        elif [ "$1" == "upgrade" ]; then
+            module_upgrade $2
+        elif [ "$1" == "update" ]; then
+            module_update $2
+        elif [ "$1" == "config" ]; then
+            module_config $2
+        elif [ "$1" == "log" ]; then
+            module_log $2
+        else
+            echo "Usage: $0 {start|stop|recreate|update|upgrade|log|config} [module]"
+            exit 1
+        fi
+    else
+        echo "Module not found '$2'"
+        exit 1
+    fi
+fi

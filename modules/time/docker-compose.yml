@@ -1,0 +1,87 @@
+services:
+  kimai:
+    container_name: time_kimai
+    image: kimai/kimai2:fpm
+    environment:
+      - ADMINMAIL=${KIMAI_ADMINMAIL}
+      - ADMINPASS=${KIMAI_ADMINPASS}
+      - DATABASE_URL=mysql://kimaiuser:${DB_PASS}@mysql/kimai?serverVersion=8.0
+      - TRUSTED_HOSTS=${KIMAI_TRUSTED_HOSTS}
+      - TRUSTED_PROXIES=traefik
+    volumes:
+      - kimai_public:/opt/kimai/public
+      - kimai_var:/opt/kimai/var
+      - ../../../docmix-config/modules/time/config/local.yml:/opt/kimai/config/packages/local.yaml
+    restart: unless-stopped
+    networks:
+      - app
+      - db
+    depends_on:
+      - mysql
+
+  mysql:
+    container_name: time_mysql
+    image: mysql:8.0
+    environment:
+      - MYSQL_DATABASE=kimai
+      - MYSQL_USER=kimaiuser
+      - MYSQL_PASSWORD=${DB_PASS}
+      - MYSQL_ROOT_PASSWORD=${DB_ROOT_PASS}
+    volumes:
+      - mysql_data:/var/lib/mysql
+    command: --default-storage-engine innodb
+    restart: unless-stopped
+    healthcheck:
+      interval: 20s
+      test: mysqladmin -p$$DB_ROOT_PASS ping -h localhost
+      start_period: 10s
+      timeout: 10s
+      retries: 3
+    networks:
+      - db
+
+  nginx:
+    container_name: time_nginx
+    image: tobybatch/nginx-fpm-reverse-proxy
+    volumes:
+      - kimai_public:/opt/kimai/public:ro
+    restart: unless-stopped
+    depends_on:
+      - kimai
+    healthcheck:
+      test: wget --spider http://nginx/health || exit 1
+      interval: 20s
+      start_period: 10s
+      timeout: 10s
+      retries: 3
+    networks:
+      - dmz-internal
+      - app
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.kimai.rule=Host(`${DOMAIN}`)
+      - traefik.http.routers.kimai.entrypoints=websecure
+      - traefik.http.routers.kimai.tls.certresolver=letsencrypt
+      - traefik.http.middlewares.kimai.forwardauth.trustForwardHeader=true
+
+networks:
+  dmz-internal:
+    external: true
+  app:
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.31.11.0/28
+  db:
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.31.11.16/28
+
+
+volumes:
+  kimai_var:
+  kimai_public:
+  mysql_data:
