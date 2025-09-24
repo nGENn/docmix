@@ -1,6 +1,6 @@
 services:
   netbox: &netbox
-    image: docker.io/netboxcommunity/netbox:${VERSION-v4.3}
+    image: docker.io/netboxcommunity/netbox:${VERSION-v4.4}
     container_name: infra_netbox
     restart: unless-stopped
     depends_on:
