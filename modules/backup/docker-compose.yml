@@ -15,3 +15,4 @@ services:
       - ../../../docmix-config/modules/backup/borg_passphrase:/borg_passphrase:ro
       - ../../../docmix-config/modules/backup/ssh:/root/.ssh
       - ../../../docmix-config/modules/backup/borgmatic_cronjob:/etc/cron.d/borgmatic_cronjob
+

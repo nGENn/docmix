@@ -1,14 +1,21 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-KEEP_NAME="backup_borg"
+KEEP_NAMES=("backup_borg" "monitor_loki", "proxy_traefik")
 # Everything after the first arg is the command to run:
 CMD=( "/root/.local/bin/borgmatic" "create" "--verbosity" "1" "--stats" )
 
 # 1) Build a list of all running containers except the one to keep
 declare -a STOP_IDS=()
 while read -r NAME ID; do
-  if [ "$NAME" != "$KEEP_NAME" ]; then
+  skip=false
+  for KEEP in "${KEEP_NAMES[@]}"; do
+    if [ "$NAME" = "$KEEP" ]; then
+      skip=true
+      break
+    fi
+  done
+  if ! $skip; then
     STOP_IDS+=("$ID")
   fi
 done < <(docker ps --format '{{.Names}} {{.ID}}')
