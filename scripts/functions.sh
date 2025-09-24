@@ -59,7 +59,13 @@ module_upgrade() {
 module_stop() {
     local module_name="$1"
 
-    docker compose --env-file ../../docmix-config/modules/$module_name/.env -f ../modules/$module_name/docker-compose.yml down
+    docker compose --env-file ../../docmix-config/modules/$module_name/.env -f ../modules/$module_name/docker-compose.yml -f ../../docmix-config/modules/$module_name/docker-compose.yml stop 
+}
+
+module_down() {
+    local module_name="$1"
+
+    docker compose --env-file ../../docmix-config/modules/$module_name/.env -f ../modules/$module_name/docker-compose.yml -f ../../docmix-config/modules/$module_name/docker-compose.yml down 
 }
 
 module_update() {

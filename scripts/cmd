@@ -20,6 +20,12 @@ stop_modules() {
     done
 }
 
+down_modules() {
+    for module in ${MODULES[@]}; do
+        module_down $module
+    done
+}
+
 recreate_modules() {
     for module in ${MODULES[@]}; do
         module_recreate $module
@@ -55,12 +61,14 @@ if [ -z "$2" ]; then
         start_modules
     elif [ "$1" == "stop" ]; then
         stop_modules
+    elif [ "$1" == "down" ]; then
+        down_modules
     elif [ "$1" == "recreate" ]; then
         recreate_modules
     elif [ "$1" == "update" ]; then
         update_modules
     else
-        echo "Usage: $0 {start|stop|recreate|update|upgrade|log|config} [module]"
+        echo "Usage: $0 {start|stop|recreate|update|upgrade|log|config|stop|down} [module]"
         exit 1
     fi
 else
@@ -70,6 +78,8 @@ else
         elif [ "$1" == "stop" ]; then
             module_stop $2
         elif [ "$1" == "recreate" ]; then
+            module_down $2
+        elif [ "$1" == "down" ]; then
             module_recreate $2
         elif [ "$1" == "upgrade" ]; then
             module_upgrade $2
