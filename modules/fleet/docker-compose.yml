@@ -29,6 +29,11 @@ services:
       - traefik.http.routers.fleet.entrypoints=websecure
       - traefik.http.routers.fleet.tls.certresolver=letsencrypt
       - traefik.http.services.fleet.loadbalancer.server.port=8080
+      - traefik.http.routers.fleet-http.rule=Host(`${DOMAIN}`)
+      - traefik.http.routers.fleet-http.entrypoints=web
+      - traefik.http.routers.fleet-http.middlewares=redirect-to-https
+      - traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https
+      - traefik.http.middlewares.redirect-to-https.redirectscheme.permanent=true
 
   db:
     image: mysql:8.0
@@ -51,7 +56,7 @@ services:
       retries: 3
 
   redis:
-    image: redis:7
+    image: redis:8
     restart: unless-stopped
     container_name: fleet_redis
     networks:

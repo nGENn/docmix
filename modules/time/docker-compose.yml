@@ -63,6 +63,11 @@ services:
       - traefik.http.routers.kimai.entrypoints=websecure
       - traefik.http.routers.kimai.tls.certresolver=letsencrypt
       - traefik.http.middlewares.kimai.forwardauth.trustForwardHeader=true
+      - traefik.http.routers.kimai-http.rule=Host(`${DOMAIN}`)
+      - traefik.http.routers.kimai-http.entrypoints=web
+      - traefik.http.routers.kimai-http.middlewares=redirect-to-https
+      - traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https
+      - traefik.http.middlewares.redirect-to-https.redirectscheme.permanent=true
 
 networks:
   dmz-internal:

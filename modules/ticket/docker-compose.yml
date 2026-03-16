@@ -48,7 +48,7 @@ x-shared:
         #   # Variables used by acme-companion for retrieval of LetsEncrypt certificate
 
 
-    image: ${IMAGE_REPO:-ghcr.io/zammad/zammad}:${VERSION:-6.4.1-45}
+    image: ${IMAGE_REPO:-ghcr.io/zammad/zammad}:latest
     restart: ${RESTART:-always}
     volumes:
       - zammad_storage:/opt/zammad/storage
@@ -70,12 +70,23 @@ services:
 
   zammad-elasticsearch:
     container_name: ticket_zammad_elasticsearch
-    image: bitnami/elasticsearch:${ELASTICSEARCH_VERSION:-8.17.1}
+      # image: elasticsearch:${ELASTICSEARCH_VERSION:-8.17.1}
+      # restart: ${RESTART:-always}
+      # networks:
+      # - app
+      # volumes:
+      # - elasticsearch_data:/usr/share/elasticsearch/data
+    image: elasticsearch:8.19.7
     restart: ${RESTART:-always}
+    volumes:
+      # - elasticsearch-data:/usr/share/elasticsearch/data
+      - elasticsearch_data:/usr/share/elasticsearch/data
+    environment:
+      discovery.type: single-node
+      xpack.security.enabled: 'false'
+      ES_JAVA_OPTS: ${ELASTICSEARCH_JAVA_OPTS:--Xms1g -Xmx1g}
     networks:
       - app
-    volumes:
-      - elasticsearch_data:/bitnami/elasticsearch/data
 
   zammad-init:
     <<: *zammad-service
@@ -89,7 +100,7 @@ services:
   zammad-memcached:
     container_name: ticket_zammad_memcached
     command: memcached -m 256M
-    image: memcached:${MEMCACHE_VERSION:-1.6.36-alpine}
+    image: memcached:latest
     networks:
       - app
     restart: ${RESTART:-always}
@@ -110,6 +121,11 @@ services:
       - traefik.http.routers.ticket.tls=true
       - traefik.http.routers.ticket.tls.certresolver=letsencrypt
       - traefik.http.services.ticket.loadbalancer.server.port=8080
+      - traefik.http.routers.ticket-http.rule=Host(`${DOMAIN}`)
+      - traefik.http.routers.ticket-http.entrypoints=web
+      - traefik.http.routers.ticket-http.middlewares=redirect-to-https
+      - traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https
+      - traefik.http.middlewares.redirect-to-https.redirectscheme.permanent=true
     depends_on:
       - zammad-railsserver
 
@@ -119,7 +135,7 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-zammad_production}
       POSTGRES_USER: ${POSTGRES_USER:-zammad}
       POSTGRES_PASSWORD: ${POSTGRES_PASS:-zammad}
-    image: postgres:${POSTGRES_VERSION:-17.2-alpine}
+    image: postgres:17
     restart: ${RESTART:-always}
     networks:
       - app
@@ -133,7 +149,7 @@ services:
 
   zammad-redis:
     container_name: ticket_zammad_redis
-    image: redis:${REDIS_VERSION:-7.4.2-alpine}
+    image: redis:latest
     restart: ${RESTART:-always}
     networks:
       - app

@@ -24,6 +24,11 @@ services:
       - traefik.http.routers.infra.tls=true
       - traefik.http.routers.infra.tls.certresolver=letsencrypt
       - traefik.http.services.infra.loadbalancer.server.port=8080
+      - traefik.http.routers.infra-http.rule=Host(`${DOMAIN}`)
+      - traefik.http.routers.infra-http.entrypoints=web
+      - traefik.http.routers.infra-http.middlewares=redirect-to-https
+      - traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https
+      - traefik.http.middlewares.redirect-to-https.redirectscheme.permanent=true
     volumes:
       - ../../../docmix-config/modules/infra/extra.py:/etc/netbox/config/extra.py:z,ro
       - netbox_media_files:/opt/netbox/netbox/media:rw

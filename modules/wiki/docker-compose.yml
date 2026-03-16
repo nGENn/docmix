@@ -22,66 +22,71 @@ services:
       - traefik.http.routers.wiki.entrypoints=websecure
       - traefik.http.routers.wiki.tls.certresolver=letsencrypt
       - traefik.http.services.wiki.loadbalancer.server.port=3000
+      - traefik.http.routers.wiki-http.rule=Host(`${DOMAIN}`)
+      - traefik.http.routers.wiki-http.entrypoints=web
+      - traefik.http.routers.wiki-http.middlewares=redirect-to-https
+      - traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https
+      - traefik.http.middlewares.redirect-to-https.redirectscheme.permanent=true
 
-  kroki:
-    container_name: wiki_kroki
-    image: yuzutech/kroki
-    restart: unless-stopped  
-    depends_on:
-      - blockdiag
-      - mermaid
-      - bpmn
-      - excalidraw
-    environment:
-      - KROKI_BLOCKDIAG_HOST=blockdiag
-      - KROKI_MERMAID_HOST=mermaid
-      - KROKI_BPMN_HOST=bpmn
-      - KROKI_EXCALIDRAW_HOST=excalidraw
-    labels:
-      - traefik.enable=true
-      - traefik.http.routers.kroki.rule=Host(`${KROKI_DOMAIN}`)
-      - traefik.http.routers.kroki.entrypoints=websecure
-      - traefik.http.routers.kroki.tls.certresolver=letsencrypt
-      - traefik.http.services.kroki.loadbalancer.server.port=8000
-    networks:
-      - app
-      - dmz-internal
-
-  blockdiag:
-    container_name: wiki_blockdiag
-    image: yuzutech/kroki-blockdiag
-    restart: unless-stopped
-    expose:
-      - "8001"
-    networks:
-      - app
-
-  mermaid:
-    container_name: wiki_mermaid
-    image: yuzutech/kroki-mermaid
-    restart: unless-stopped
-    expose:
-      - "8002"
-    networks:
-      - app
-
-  bpmn:
-    container_name: wiki_bpmn
-    image: yuzutech/kroki-bpmn
-    restart: unless-stopped
-    expose:
-      - "8003"
-    networks:
-      - app
-
-  excalidraw:
-    container_name: wiki_excalidraw
-    image: yuzutech/kroki-excalidraw
-    restart: unless-stopped
-    expose:
-      - "8004"
-    networks:
-      - app
+        #  kroki:
+        #    container_name: wiki_kroki
+        #    image: yuzutech/kroki
+        #    restart: unless-stopped  
+        #    depends_on:
+        #      - blockdiag
+        #      - mermaid
+        #      - bpmn
+        #      - excalidraw
+        #    environment:
+        #      - KROKI_BLOCKDIAG_HOST=blockdiag
+        #      - KROKI_MERMAID_HOST=mermaid
+        #      - KROKI_BPMN_HOST=bpmn
+        #      - KROKI_EXCALIDRAW_HOST=excalidraw
+        #    labels:
+        #      - traefik.enable=true
+        #      - traefik.http.routers.kroki.rule=Host(`${KROKI_DOMAIN}`)
+        #      - traefik.http.routers.kroki.entrypoints=websecure
+        #      - traefik.http.routers.kroki.tls.certresolver=letsencrypt
+        #      - traefik.http.services.kroki.loadbalancer.server.port=8000
+        #    networks:
+        #      - app
+        #      - dmz-internal
+        #
+        #  blockdiag:
+        #    container_name: wiki_blockdiag
+        #    image: yuzutech/kroki-blockdiag
+        #    restart: unless-stopped
+        #    expose:
+        #      - "8001"
+        #    networks:
+        #      - app
+        #
+        #  mermaid:
+        #    container_name: wiki_mermaid
+        #    image: yuzutech/kroki-mermaid
+        #    restart: unless-stopped
+        #    expose:
+        #      - "8002"
+        #    networks:
+        #      - app
+        #
+        #  bpmn:
+        #    container_name: wiki_bpmn
+        #    image: yuzutech/kroki-bpmn
+        #    restart: unless-stopped
+        #    expose:
+        #      - "8003"
+        #    networks:
+        #      - app
+        #
+        #  excalidraw:
+        #    container_name: wiki_excalidraw
+        #    image: yuzutech/kroki-excalidraw
+        #    restart: unless-stopped
+        #    expose:
+        #      - "8004"
+        #    networks:
+        #      - app
 
   postgres:
     container_name: wiki_postgres

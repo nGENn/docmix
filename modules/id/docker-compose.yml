@@ -13,6 +13,11 @@ services:
       - traefik.http.routers.id-normal.tls=true
       - traefik.http.routers.id-normal.tls.certresolver=letsencrypt
       - traefik.http.services.id-normal.loadbalancer.server.port=8080
+      - traefik.http.routers.id-normal-http.rule=Host(`${DOMAIN}`)
+      - traefik.http.routers.id-normal-http.entrypoints=web
+      - traefik.http.routers.id-normal-http.middlewares=redirect-to-https
+      - traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https
+      - traefik.http.middlewares.redirect-to-https.redirectscheme.permanent=true
     environment:
       - KEYCLOAK_ADMIN=${KC_USER}
       - KEYCLOAK_ADMIN_PASSWORD=${KC_PASSWORD}

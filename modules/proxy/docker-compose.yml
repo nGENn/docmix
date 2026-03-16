@@ -17,6 +17,11 @@ services:
       - traefik.http.routers.reverse-proxy.service=api@internal
       - traefik.http.routers.reverse-proxy.middlewares=auth-dashboard
       - traefik.http.routers.reverse-proxy.tls.certresolver=letsencrypt
+      - traefik.http.routers.reverse-proxy-http.rule=Host(`${DOMAIN}`)
+      - traefik.http.routers.reverse-proxy-http.entrypoints=web
+      - traefik.http.routers.reverse-proxy-http.middlewares=redirect-to-https
+      - traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https
+      - traefik.http.middlewares.redirect-to-https.redirectscheme.permanent=true
       - traefik.http.middlewares.auth-dashboard.basicauth.users=${DASHBOARD_USER}
     ports:
       # The HTTP port

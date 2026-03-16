@@ -73,6 +73,11 @@ services:
       - traefik.http.routers.project.tls=true
       - traefik.http.routers.project.tls.certresolver=letsencrypt
       - traefik.http.services.project.loadbalancer.server.port=80
+      - traefik.http.routers.project-http.rule=Host(`${DOMAIN}`)
+      - traefik.http.routers.project-http.entrypoints=web
+      - traefik.http.routers.project-http.middlewares=redirect-to-https
+      - traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https
+      - traefik.http.middlewares.redirect-to-https.redirectscheme.permanent=true
     volumes:
       - proxy_data:/data
       - proxy_config:/config

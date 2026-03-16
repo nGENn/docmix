@@ -37,6 +37,11 @@ services:
       - traefik.http.routers.grc.tls.certresolver=letsencrypt
       - traefik.http.middlewares.grc.forwardauth.trustForwardHeader=true
       - traefik.http.services.grc.loadbalancer.server.port=80
+      - traefik.http.routers.grc-http.rule=Host(`${DOMAIN}`)
+      - traefik.http.routers.grc-http.entrypoints=web
+      - traefik.http.routers.grc-http.middlewares=redirect-to-https
+      - traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https
+      - traefik.http.middlewares.redirect-to-https.redirectscheme.permanent=true
 
   cron:
     container_name: grc_cron

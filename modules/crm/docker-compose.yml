@@ -36,6 +36,11 @@ services:
       - traefik.http.routers.espocrm-app.entrypoints=websecure
       - traefik.http.routers.espocrm-app.tls=true
       - traefik.http.routers.espocrm-app.tls.certresolver=letsencrypt
+      - traefik.http.routers.espocrm-app-http.rule=Host(`${DOMAIN}`)
+      - traefik.http.routers.espocrm-app-http.entrypoints=web
+      - traefik.http.routers.espocrm-app-http.middlewares=redirect-to-https
+      - traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https
+      - traefik.http.middlewares.redirect-to-https.redirectscheme.permanent=true
     networks:
       - app
       - dmz-internal
@@ -72,6 +77,11 @@ services:
       - traefik.http.routers.espocrm-ws.entrypoints=websecure
       - traefik.http.routers.espocrm-ws.tls=true
       - traefik.http.routers.espocrm-ws.tls.certresolver=letsencrypt
+      - traefik.http.routers.espocrm-ws-http.rule=Host(`${DOMAIN}`) && PathPrefix(`/ws`)
+      - traefik.http.routers.espocrm-ws-http.entrypoints=web
+      - traefik.http.routers.espocrm-ws-http.middlewares=redirect-to-https
+      - traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https
+      - traefik.http.middlewares.redirect-to-https.redirectscheme.permanent=true
     networks:
       - app
       - dmz-internal
