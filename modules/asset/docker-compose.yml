@@ -17,8 +17,6 @@ services:
       - traefik.http.routers.asset-http.middlewares=redirect-to-https
       - traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https
       - traefik.http.middlewares.redirect-to-https.redirectscheme.permanent=true
-    ports:
-      - "${APP_PORT:-8000}:80"
     networks:
       - dmz-internal
       - app

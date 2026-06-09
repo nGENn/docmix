@@ -1,6 +1,6 @@
 services:
   netbox: &netbox
-    image: docker.io/netboxcommunity/netbox:${VERSION-v4.4}
+    image: docker.io/netboxcommunity/netbox:${VERSION-latest}
     container_name: infra_netbox
     restart: unless-stopped
     depends_on:
@@ -8,7 +8,7 @@ services:
       - redis
       - redis-cache
     env_file: ../../../docmix-config/modules/infra/netbox.env
-    user: "unit:root"
+    user: "netbox:root"
     healthcheck:
       test: curl -f http://localhost:8080/login/ || exit 1
       start_period: 90s

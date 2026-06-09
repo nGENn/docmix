@@ -32,6 +32,8 @@ services:
     volumes:
       # Config for all Traefik Parameters
       - ./config/traefik.yml:/traefik.yml
+      # Dynamic configuration files
+      - ./config/dyn:/dyn
       # Storage for Letsencrypt generated ACME Certificates
       - traefik_letsencrypt:/letsencrypt:rw
       # So that Traefik can listen to the Docker events

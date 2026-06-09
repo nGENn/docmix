@@ -1,6 +1,6 @@
 services:
   gitlab:
-    image: gitlab/gitlab-ce:latest
+    image: gitlab/gitlab-ce:18.11.2-ce.0
     container_name: git_gitlab
     restart: unless-stopped
     ports:
@@ -14,9 +14,19 @@ services:
         nginx['listen_port'] = 80
         registry_nginx['listen_https'] = false
         registry_nginx['listen_port'] = 80
+
+        pages_external_url 'https://${PAGES_DOMAIN}'
+        gitlab_pages['namespace_in_path'] = true
+        gitlab_pages['access_control'] = true
+        pages_nginx['enable'] = true
+        pages_nginx['listen_https'] = false
+        pages_nginx['listen_port'] = 80
+
         gitlab_rails['initial_root_password'] = '${GITLAB_ROOT_PASSWORD}'
 
         puma['worker_processes'] = 8
+
+        postgresql['max_service_checks'] = 40
 
         gitlab_rails['smtp_enable'] = ${SMTP_ENABLED}
         gitlab_rails['smtp_address'] = "${SMTP_ADDRESS}"
@@ -60,11 +70,11 @@ services:
       - gitlab_data:/var/opt/gitlab
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.gitlab.rule=Host(`${DOMAIN}`) || Host(`${REGISTRY_DOMAIN}`)"
+      - "traefik.http.routers.gitlab.rule=Host(`${DOMAIN}`) || Host(`${REGISTRY_DOMAIN}`) || Host(`${PAGES_DOMAIN}`)"
       - "traefik.http.routers.gitlab.entrypoints=websecure"
       - "traefik.http.routers.gitlab.tls.certresolver=letsencrypt"
       - "traefik.http.services.cloud-https.loadbalancer.server.port=80"
-      - "traefik.http.routers.gitlab-http.rule=Host(`${DOMAIN}`) || Host(`${REGISTRY_DOMAIN}`)"
+      - "traefik.http.routers.gitlab-http.rule=Host(`${DOMAIN}`) || Host(`${REGISTRY_DOMAIN}`) || Host(`${PAGES_DOMAIN}`)"
       - "traefik.http.routers.gitlab-http.entrypoints=web"
       - "traefik.http.routers.gitlab-http.middlewares=redirect-to-https"
       - "traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https"

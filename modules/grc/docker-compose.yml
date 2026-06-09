@@ -1,7 +1,7 @@
 services:
   eramba:
     container_name: grc_eramba
-    image: ghcr.io/eramba/eramba-enterprise:3.27.0-7
+    image: ghcr.io/eramba/eramba-enterprise:latest
     # image: ghcr.io/eramba/eramba:latest
     restart: unless-stopped
     volumes:
@@ -45,7 +45,7 @@ services:
 
   cron:
     container_name: grc_cron
-    image: ghcr.io/eramba/eramba-enterprise:3.27.0-7
+    image: ghcr.io/eramba/eramba-enterprise:latest
     # image: ghcr.io/eramba/eramba:latest
     command: [ "cron", "-f" ]
     entrypoint: [ "/docker-cron-entrypoint.sh" ]

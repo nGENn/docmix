@@ -25,10 +25,11 @@ x-op-app: &app
     - OPENPROJECT_OPENID__CONNECT_KEYCLOAK_AUTHORIZATION__ENDPOINT=/realms/docmix/protocol/openid-connect/auth
     - OPENPROJECT_OPENID__CONNECT_KEYCLOAK_TOKEN__ENDPOINT=/realms/docmix/protocol/openid-connect/token
     - OPENPROJECT_OPENID__CONNECT_KEYCLOAK_USERINFO__ENDPOINT=/realms/docmix/protocol/openid-connect/userinfo
+    - SECRET_KEY_BASE=${OPENPROJECT_SECRET_KEY_BASE}
 
     # uncomment to disable native login (should give an keycloak account admin right's before)
     - OPENPROJECT_DISABLE__PASSWORD__LOGIN=${DISABLE_PASSWORDS}
-    - OMNIAUTH_DIRECT_LOGIN_PROVIDER=keycloak
+      # - OMNIAUTH_DIRECT_LOGIN_PROVIDER=keycloak
   volumes:
     - openproject_data:/var/openproject/assets
 

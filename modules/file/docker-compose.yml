@@ -58,12 +58,9 @@ services:
       - traefik.http.routers.file.rule=Host(`${DOMAIN}`)
       - traefik.http.routers.file.entrypoints=websecure
       - traefik.http.routers.file.tls.certresolver=letsencrypt
-      - traefik.http.routers.file.middlewares=nextcloud-dav,nextcloud-sts
+      - traefik.http.routers.file.middlewares=nextcloud-dav
       - traefik.http.middlewares.nextcloud-dav.replacepathregex.regex=^/.well-known/ca(l|rd)dav
       - traefik.http.middlewares.nextcloud-dav.replacepathregex.replacement=/remote.php/dav/
-      - traefik.http.middlewares.nextcloud-sts.headers.stsseconds=31536000
-      - traefik.http.middlewares.nextcloud-sts.headers.stsIncludeSubdomains=false
-      - traefik.http.middlewares.nextcloud-sts.headers.stsPreload=true
       - traefik.http.services.file.loadbalancer.server.port=80
       - traefik.http.routers.file-http.rule=Host(`${DOMAIN}`)
       - traefik.http.routers.file-http.entrypoints=web
