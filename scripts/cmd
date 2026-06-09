@@ -1,100 +1,192 @@
 #!/bin/bash
+#
+# cmd — manage Docmix docker-compose modules.
+#
+#   cmd <verb> [module] [args...]
+#
+# Fan-out verbs (apply to ONE module, or ALL modules in order when no module given):
+#   start      bring module(s) up (-d)
+#   stop       stop module(s)
+#   restart    restart module(s)
+#   down       tear module(s) down (removes containers/networks)
+#   recreate   up -d --build --force-recreate
+#   update     pull images then up -d
+#   upgrade    pull + up -d --build --force-recreate (--pull=always)
+#   pull       pull images only
+#   ps         show container status
+#
+# Module-required verbs:
+#   logs       follow logs for a module               (cmd logs <module>)
+#   config     print the merged compose config        (cmd config <module>)
+#   exec       exec into a service                     (cmd exec <module> <service> <cmd...>)
+#   dc         raw docker-compose passthrough          (cmd dc <module> <any compose args...>)
+#
+# Other:
+#   init       initialise all modules (.env files, networks, secrets)
+#   list       list known modules in deployment order
+#   help       show this help
+#
+# Runs from anywhere. Paths can be overridden via DOCMIX_MODULES_DIR / DOCMIX_CONFIG_DIR.
 
-### Load helper functions
-source ./functions.sh
+set -euo pipefail
 
-### Global Variables
-MODULES=(proxy id file crm git)
+source "$(dirname "${BASH_SOURCE[0]}")/functions.sh"
 
-### Global Functions
-start_modules() {
-    for module in ${MODULES[@]}; do
-        echo "Starting $module"
-        module_start $module
-    done
+PROG="$(basename "$0")"
+
+usage() {
+    cat <<EOF
+Usage: $PROG <verb> [module] [args...]
+
+Fan-out verbs (one module, or ALL in order when no module given):
+  start      bring module(s) up (-d)
+  stop       stop module(s)
+  restart    restart module(s)
+  down       tear module(s) down (removes containers/networks)
+  recreate   up -d --build --force-recreate
+  update     pull images then up -d
+  upgrade    pull + up -d --build --force-recreate (--pull=always)
+  pull       pull images only
+  ps         show container status
+
+Module-required verbs:
+  logs <module>                follow logs
+  config <module>              print merged compose config
+  exec <module> <svc> [cmd]    exec into a service
+  dc <module> <args...>        raw docker-compose passthrough
+
+Other:
+  init       initialise all modules (.env files, networks, secrets)
+  list       list known modules in deployment order
+  help       show this help
+
+Modules:
+  $(modules_ordered | tr '\n' ' ')
+EOF
 }
 
-stop_modules() {
-    for module in ${MODULES[@]}; do
-        module_stop $module
-    done
-}
-
-down_modules() {
-    for module in ${MODULES[@]}; do
-        module_down $module
-    done
-}
-
-recreate_modules() {
-    for module in ${MODULES[@]}; do
-        module_recreate $module
-    done
-}
-
-update_modules() {
-    for module in ${MODULES[@]}; do
-        module_update $module
-    done
-}
-
-### Do work
-if [ "$1" == "init" ]; then
-    source ./init.sh
-    init_proxy
-    init_id
-    init_file
-    init_crm
-    init_git
-    init_time
-    init_grc
-    init_fleet
-    init_infra
-    init_ticket
-    init_asset
-    init_pass
-    exit 0
-fi
-
-if [ -z "$2" ]; then
-    if [ "$1" == "start" ]; then
-        start_modules
-    elif [ "$1" == "stop" ]; then
-        stop_modules
-    elif [ "$1" == "down" ]; then
-        down_modules
-    elif [ "$1" == "recreate" ]; then
-        recreate_modules
-    elif [ "$1" == "update" ]; then
-        update_modules
-    else
-        echo "Usage: $0 {start|stop|recreate|update|upgrade|log|config|stop|down} [module]"
-        exit 1
-    fi
-else
-    if item_in_list $2 $MODULES; then
-        if [ "$1" == "start" ]; then
-            module_start $2
-        elif [ "$1" == "stop" ]; then
-            module_stop $2
-        elif [ "$1" == "recreate" ]; then
-            module_down $2
-        elif [ "$1" == "down" ]; then
-            module_recreate $2
-        elif [ "$1" == "upgrade" ]; then
-            module_upgrade $2
-        elif [ "$1" == "update" ]; then
-            module_update $2
-        elif [ "$1" == "config" ]; then
-            module_config $2
-        elif [ "$1" == "log" ]; then
-            module_log $2
-        else
-            echo "Usage: $0 {start|stop|recreate|update|upgrade|log|config} [module]"
-            exit 1
+# Run a fan-out verb across every module, in the given order.
+# Continues past per-module failures and reports them at the end.
+run_all() {
+    local fn="$1"; shift
+    local mods=("$@")
+    local m
+    local failed=()
+    for m in "${mods[@]}"; do
+        echo ">>> ${fn#module_} $m"
+        local rc=0
+        "$fn" "$m" || rc=$?
+        if [[ $rc -ne 0 ]]; then
+            echo "!!! ${fn#module_} $m FAILED (exit $rc)" >&2
+            failed+=("$m")
         fi
-    else
-        echo "Module not found '$2'"
-        exit 1
+    done
+    if [[ ${#failed[@]} -gt 0 ]]; then
+        echo >&2
+        echo "Failed for: ${failed[*]}" >&2
+        return 1
     fi
-fi
+}
+
+# Reverse the module order (for stop/down: dependents first).
+modules_reversed() {
+    modules_ordered | tac
+}
+
+# Map a fan-out verb name to its module_* function.
+fanout_fn() {
+    case "$1" in
+        start)    echo module_start ;;
+        stop)     echo module_stop ;;
+        restart)  echo module_restart ;;
+        down)     echo module_down ;;
+        recreate) echo module_recreate ;;
+        update)   echo module_update ;;
+        upgrade)  echo module_upgrade ;;
+        pull)     echo module_pull ;;
+        ps)       echo module_ps ;;
+        *)        return 1 ;;
+    esac
+}
+
+[[ $# -eq 0 ]] && { usage; exit 1; }
+
+verb="$1"; shift
+
+case "$verb" in
+    help|-h|--help)
+        usage
+        exit 0
+        ;;
+
+    list|modules)
+        modules_ordered
+        exit 0
+        ;;
+
+    init)
+        # init.sh uses paths relative to the scripts dir, so run from there.
+        cd "$DOCMIX_SCRIPTS_DIR"
+        source ./init.sh
+        init_proxy
+        init_id
+        init_file
+        init_crm
+        init_git
+        init_time
+        init_grc
+        init_fleet
+        init_infra
+        init_ticket
+        init_asset
+        init_pass
+        exit 0
+        ;;
+
+    start|stop|restart|down|recreate|update|upgrade|pull|ps)
+        fn="$(fanout_fn "$verb")"
+        if [[ $# -eq 0 ]]; then
+            # No module: apply to all. stop/down go in reverse (dependents first).
+            case "$verb" in
+                stop|down) mapfile -t mods < <(modules_reversed) ;;
+                *)         mapfile -t mods < <(modules_ordered) ;;
+            esac
+            run_all "$fn" "${mods[@]}"
+        else
+            module="$1"
+            is_module "$module" || { echo "Module not found: '$module'" >&2; exit 1; }
+            "$fn" "$module"
+        fi
+        ;;
+
+    logs|log|config)
+        [[ $# -ge 1 ]] || { echo "Usage: $PROG $verb <module>" >&2; exit 1; }
+        module="$1"; shift
+        is_module "$module" || { echo "Module not found: '$module'" >&2; exit 1; }
+        case "$verb" in
+            logs|log) module_log "$module" ;;
+            config)   module_config "$module" ;;
+        esac
+        ;;
+
+    exec)
+        [[ $# -ge 2 ]] || { echo "Usage: $PROG exec <module> <service> [cmd...]" >&2; exit 1; }
+        module="$1"; shift
+        is_module "$module" || { echo "Module not found: '$module'" >&2; exit 1; }
+        dc "$module" exec "$@"
+        ;;
+
+    dc|compose)
+        [[ $# -ge 2 ]] || { echo "Usage: $PROG dc <module> <docker compose args...>" >&2; exit 1; }
+        module="$1"; shift
+        is_module "$module" || { echo "Module not found: '$module'" >&2; exit 1; }
+        dc "$module" "$@"
+        ;;
+
+    *)
+        echo "Unknown command: '$verb'" >&2
+        echo >&2
+        usage >&2
+        exit 1
+        ;;
+esac

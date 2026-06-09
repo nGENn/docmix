@@ -1,5 +1,72 @@
 #!/bin/bash
 
+### Path resolution (works whether sourced from cmd, init.sh, or anywhere) ###
+# Resolve the directory this file lives in, following symlinks.
+_fn_src="${BASH_SOURCE[0]}"
+while [ -h "$_fn_src" ]; do
+    _fn_dir="$(cd -P "$(dirname "$_fn_src")" >/dev/null 2>&1 && pwd)"
+    _fn_src="$(readlink "$_fn_src")"
+    [[ $_fn_src != /* ]] && _fn_src="$_fn_dir/$_fn_src"
+done
+DOCMIX_SCRIPTS_DIR="$(cd -P "$(dirname "$_fn_src")" >/dev/null 2>&1 && pwd)"
+unset _fn_src _fn_dir
+
+DOCMIX_ROOT="$(dirname "$DOCMIX_SCRIPTS_DIR")"
+: "${DOCMIX_MODULES_DIR:=$DOCMIX_ROOT/modules}"
+: "${DOCMIX_CONFIG_DIR:=$(dirname "$DOCMIX_ROOT")/docmix-config/modules}"
+
+### Module set ###
+# Modules that must come up first (SSO core); the rest are appended in sorted order.
+ORDER=(proxy id)
+
+# Print all known modules in deployment order: ORDER head, then remaining dirs sorted.
+modules_ordered() {
+    local m
+    for m in "${ORDER[@]}"; do
+        [[ -d "$DOCMIX_MODULES_DIR/$m" ]] && echo "$m"
+    done
+    for m in $(cd "$DOCMIX_MODULES_DIR" && ls -d */ 2>/dev/null | sed 's#/##' | sort); do
+        item_in_list "$m" "${ORDER[@]}" && continue
+        echo "$m"
+    done
+}
+
+# True if $1 is a real module directory.
+is_module() {
+    [[ -n "$1" && -d "$DOCMIX_MODULES_DIR/$1" ]]
+}
+
+### Core docker compose helper — every module op flows through this ###
+# dc <module> <docker-compose args...>
+dc() {
+    local m="$1"; shift
+    local base="$DOCMIX_MODULES_DIR/$m/docker-compose.yml"
+    local override="$DOCMIX_CONFIG_DIR/$m/docker-compose.yml"
+    local envf="$DOCMIX_CONFIG_DIR/$m/.env"
+
+    local files=(-f "$base")
+    [[ -s "$override" ]] && files+=(-f "$override")   # skip empty/0-byte overrides
+
+    local envargs=()
+    [[ -f "$envf" ]] && envargs=(--env-file "$envf")
+
+    docker compose -p "$m" "${envargs[@]}" "${files[@]}" "$@"
+}
+
+### Module operations (thin wrappers over dc) ###
+module_start()    { dc "$1" up -d; }
+module_recreate() { dc "$1" up -d --build --force-recreate; }
+module_upgrade()  { dc "$1" up -d --build --force-recreate --pull=always; }
+module_stop()     { dc "$1" stop; }
+module_down()     { dc "$1" down; }
+module_restart()  { dc "$1" restart; }
+module_pull()     { dc "$1" pull; }
+module_update()   { dc "$1" pull && module_start "$1"; }
+module_log()      { dc "$1" logs -f; }
+module_ps()       { dc "$1" ps; }
+module_config()   { dc "$1" config; }
+
+### Init helpers (used by init.sh) ###
 env_file_append() {
     local env_file="$1"
     local var_name="$2"
@@ -28,66 +95,6 @@ docker_network_create() {
     fi
 }
 
-module_start() {
-    local module_name="$1"
-
-    docker compose --env-file ../../docmix-config/modules/$module_name/.env -f ../modules/$module_name/docker-compose.yml -f ../../docmix-config/modules/$module_name/docker-compose.yml up -d
-
-    # if [ $1 == "file" ]; then
-    #     ./file_set_proxy_ip.sh dmz-internal proxy_traefik file_nextcloud /var/www/html/config/config.php
-    #     ./file_set_Protocol.sh file_nextcloud
-    # fi
-}
-
-module_recreate() {
-    local module_name="$1"
-
-    docker compose --env-file ../../docmix-config/modules/$module_name/.env -f ../modules/$module_name/docker-compose.yml -f ../../docmix-config/modules/$module_name/docker-compose.yml up -d --build --force-recreate
-
-    # if [ $1 == "file" ]; then
-    #     ./file_set_proxy_ip.sh dmz-internal proxy_traefik file_nextcloud /var/www/html/config/config.php
-    #     ./file_set_Protocol.sh file_nextcloud
-    # fi
-}
-
-module_upgrade() {
-    local module_name="$1"
-
-    docker compose --env-file ../../docmix-config/modules/$module_name/.env -f ../modules/$module_name/docker-compose.yml -f ../../docmix-config/modules/$module_name/docker-compose.yml up -d --build --force-recreate --pull=always
-}
-
-module_stop() {
-    local module_name="$1"
-
-    docker compose --env-file ../../docmix-config/modules/$module_name/.env -f ../modules/$module_name/docker-compose.yml -f ../../docmix-config/modules/$module_name/docker-compose.yml stop 
-}
-
-module_down() {
-    local module_name="$1"
-
-    docker compose --env-file ../../docmix-config/modules/$module_name/.env -f ../modules/$module_name/docker-compose.yml -f ../../docmix-config/modules/$module_name/docker-compose.yml down 
-}
-
-module_update() {
-    local module_name="$1"
-
-    docker compose --env-file ../../docmix-config/modules/$module_name/.env -f ../modules/$module_name/docker-compose.yml -f ../../docmix-config/modules/$module_name/docker-compose.yml pull 
-    module_start "$module_name"
-}
-
-module_log() {
-    local module_name="$1"
-
-    docker compose --env-file ../../docmix-config/modules/$module_name/.env -f ../modules/$module_name/docker-compose.yml -f ../../docmix-config/modules/$module_name/docker-compose.yml logs -f
-}
-
-
-module_config() {
-    local module_name="$1"
-
-    docker compose --env-file ../../docmix-config/modules/$module_name/.env -f ../modules/$module_name/docker-compose.yml -f ../../docmix-config/modules/$module_name/docker-compose.yml config 
-}
-
 generate_password() {
     local length="$1"
 
@@ -96,15 +103,13 @@ generate_password() {
 }
 
 item_in_list() {
-    local item="$1"
-    local list="$@"
+    local item="$1"; shift
+    local element
 
-    # Check if the item is in the list
-    if echo "$list" | grep -q "\<$item\>"; then
-        return 0
-    else
-        return 1
-    fi
+    for element in "$@"; do
+        [[ "$element" == "$item" ]] && return 0
+    done
+    return 1
 }
 
 trim_whitespace() {
