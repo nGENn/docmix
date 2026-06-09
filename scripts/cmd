@@ -140,6 +140,9 @@ case "$verb" in
         init_ticket
         init_asset
         init_pass
+        init_wiki
+        init_project
+        init_backup
         exit 0
         ;;
 

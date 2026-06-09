@@ -374,7 +374,7 @@ init_ticket() {
 
     # Create file if not exists
     touch $CONFIG_DIR/.env
-    tocuh $CONFIG_DIR/docker-compose.yml
+    touch $CONFIG_DIR/docker-compose.yml
 
     # Output the result (optional)
     env_file_append $CONFIG_DIR/.env DOMAIN $DOMAIN
@@ -404,7 +404,7 @@ init_asset() {
     APP_TIMEZONE="CET+1"
     APP_LOCALE="de-DE"
     MAX_RESULTS=500
-    PRIVATRE_FILESYSTEM_DISK="local"
+    PRIVATE_FILESYSTEM_DISK="local"
     PUBLIC_FILESYSTEM_DISK="local_public"
     MAIL_MAILER="smtp"
     MAIL_HOST=""
@@ -446,7 +446,7 @@ init_asset() {
     env_file_append $CONFIG_DIR/.env APP_TIMEZONE $APP_TIMEZONE
     env_file_append $CONFIG_DIR/.env APP_LOCALE $APP_LOCALE
     env_file_append $CONFIG_DIR/.env MAX_RESULTS $MAX_RESULTS
-    env_file_append $CONFIG_DIR/.env PRIVATRE_FILESYSTEM_DISK $PRIVATRE_FILESYSTEM_DISK
+    env_file_append $CONFIG_DIR/.env PRIVATE_FILESYSTEM_DISK $PRIVATE_FILESYSTEM_DISK
     env_file_append $CONFIG_DIR/.env PUBLIC_FILESYSTEM_DISK $PUBLIC_FILESYSTEM_DISK
     env_file_append $CONFIG_DIR/.env MAIL_MAILER $MAIL_MAILER
     env_file_append $CONFIG_DIR/.env MAIL_HOST $MAIL_HOST
@@ -553,4 +553,73 @@ init_git() {
     env_file_append $CONFIG_DIR/.env OIDC_ISSUER $OIDC_ISSUER
     env_file_append $CONFIG_DIR/.env OIDC_CLIENT_ID $OIDC_CLIENT_ID
     env_file_append $CONFIG_DIR/.env OIDC_CLIENT_SECRET $OIDC_CLIENT_SECRET
+}
+
+init_project() {
+    CONFIG_DIR=../../docmix-config/modules/project
+
+    mkdir -p $CONFIG_DIR
+
+    # Define Variables
+    DOMAIN="project.$GLOBAL_DOMAIN"
+    KEYCLOAK_DOMAIN="id.$GLOBAL_DOMAIN"
+    KEYCLOAK_CLIENT_SECRET=""          # filled in after configuring the Keycloak client
+    POSTGRES_PASSWORD=$(generate_password 32)
+    OPENPROJECT_VERSION="17"
+    DISABLE_PASSWORDS="false"
+    OPENPROJECT_SECRET_KEY_BASE=$(generate_password 64)
+
+    # Create Docker networks
+    docker_network_create dmz-internal
+
+    # Create file if not exists
+    touch $CONFIG_DIR/.env
+    touch $CONFIG_DIR/docker-compose.yml
+
+    # Output the result (optional)
+    env_file_append $CONFIG_DIR/.env DOMAIN $DOMAIN
+    env_file_append $CONFIG_DIR/.env KEYCLOAK_DOMAIN $KEYCLOAK_DOMAIN
+    env_file_append $CONFIG_DIR/.env KEYCLOAK_CLIENT_SECRET $KEYCLOAK_CLIENT_SECRET
+    env_file_append $CONFIG_DIR/.env POSTGRES_PASSWORD $POSTGRES_PASSWORD
+    env_file_append $CONFIG_DIR/.env OPENPROJECT_VERSION $OPENPROJECT_VERSION
+    env_file_append $CONFIG_DIR/.env DISABLE_PASSWORDS $DISABLE_PASSWORDS
+    env_file_append $CONFIG_DIR/.env OPENPROJECT_SECRET_KEY_BASE $OPENPROJECT_SECRET_KEY_BASE
+}
+
+init_backup() {
+    CONFIG_DIR=../../docmix-config/modules/backup
+
+    mkdir -p $CONFIG_DIR
+
+    # The backup module is file-based (no .env): borgmatic is configured via the
+    # mounted config.yaml, an SSH key, and an encryption passphrase. Scaffold sane
+    # defaults without overwriting anything the operator has already set up.
+
+    # Generate an encryption passphrase if one does not already exist
+    if [[ ! -s $CONFIG_DIR/borg_passphrase ]]; then
+        generate_password 32 > $CONFIG_DIR/borg_passphrase
+        echo "Generated borg passphrase at $CONFIG_DIR/borg_passphrase."
+    else
+        echo "borg passphrase already exists, skipping."
+    fi
+
+    # Seed the borgmatic config and cron schedule from the module template
+    copy_if_not_exists ../modules/backup/config/config.yaml $CONFIG_DIR/config.yaml
+
+    if [[ ! -e $CONFIG_DIR/borgmatic_cronjob ]]; then
+        echo '0 2 * * * root /script.sh >> /var/log/cron.log 2>&1' > $CONFIG_DIR/borgmatic_cronjob
+        echo "Created default borgmatic_cronjob."
+    else
+        echo "borgmatic_cronjob already exists, skipping."
+    fi
+
+    # Directories mounted into the container (SSH keys + borg base state)
+    mkdir -p $CONFIG_DIR/ssh
+    mkdir -p $CONFIG_DIR/borg-base
+
+    # Create file if not exists
+    touch $CONFIG_DIR/docker-compose.yml
+
+    echo "NOTE: edit $CONFIG_DIR/config.yaml (repository, source dirs) and add an"
+    echo "      SSH key under $CONFIG_DIR/ssh before running 'cmd start backup'."
 }
