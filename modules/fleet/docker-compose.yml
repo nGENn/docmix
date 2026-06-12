@@ -9,17 +9,31 @@ services:
     restart: unless-stopped
     deploy:
       replicas: 1
+    depends_on:
+      rustfs-init:
+        condition: service_completed_successfully
     environment:
       FLEET_LICENSE_KEY: ${LICENSE}
       FLEET_MYSQL_ADDRESS: db:3306
       FLEET_MYSQL_DATABASE: fleet
       FLEET_MYSQL_USERNAME: ${DB_USER}
       FLEET_MYSQL_PASSWORD: ${DB_PASSWORD}
-      FLEET_REDIS_ADDRESS: redis:6379
+      # Valkey is wire-compatible with Redis — Fleet's redis client works unchanged.
+      FLEET_REDIS_ADDRESS: valkey:6379
       FLEET_SERVER_TLS: false
       FLEET_LOGGING_DEBUG: true
       FLEET_UPGRADES_ALLOW_MISSING_MIGRATIONS: true
       FLEET_SERVER_PRIVATE_KEY: ${PRIVATE_KEY}
+      # S3 software-installer storage (RustFS sidecar). Without this, installer
+      # bytes live in the container's temp dir and are lost on recreate while DB
+      # metadata survives → "Software installer download failed" on hosts.
+      FLEET_S3_SOFTWARE_INSTALLERS_BUCKET: ${FLEET_S3_SOFTWARE_INSTALLERS_BUCKET}
+      FLEET_S3_SOFTWARE_INSTALLERS_ACCESS_KEY_ID: ${FLEET_S3_SOFTWARE_INSTALLERS_ACCESS_KEY_ID}
+      FLEET_S3_SOFTWARE_INSTALLERS_SECRET_ACCESS_KEY: ${FLEET_S3_SOFTWARE_INSTALLERS_SECRET_ACCESS_KEY}
+      FLEET_S3_SOFTWARE_INSTALLERS_FORCE_S3_PATH_STYLE: true
+      FLEET_S3_SOFTWARE_INSTALLERS_ENDPOINT_URL: http://rustfs:9000
+      # RustFS short-circuits region discovery on any nonempty value.
+      FLEET_S3_SOFTWARE_INSTALLERS_REGION: us-east-1
     networks:
       - dmz-internal
       - app
@@ -55,10 +69,49 @@ services:
       timeout: 10s
       retries: 3
 
-  redis:
-    image: redis:8
+  # Drop-in Redis replacement (RESP-compatible). No persistence volume,
+  # matching previous redis setup — Fleet only uses it for live queries/sessions.
+  valkey:
+    image: valkey/valkey:8
     restart: unless-stopped
-    container_name: fleet_redis
+    container_name: fleet_valkey
+    networks:
+      - app
+
+  # S3-compatible object storage for Fleet software installers.
+  # Internal only — app network, no host port, not on dmz-internal.
+  rustfs:
+    image: rustfs/rustfs:latest
+    container_name: fleet_rustfs
+    restart: unless-stopped
+    command: ["/data"]
+    environment:
+      RUSTFS_ACCESS_KEY: ${FLEET_S3_SOFTWARE_INSTALLERS_ACCESS_KEY_ID}
+      RUSTFS_SECRET_KEY: ${FLEET_S3_SOFTWARE_INSTALLERS_SECRET_ACCESS_KEY}
+    volumes:
+      - rustfs_data:/data
+    networks:
+      - app
+
+  # One-shot: waits for RustFS, creates the bucket Fleet expects (path-style), exits.
+  # Idempotent — `mb` on an existing bucket is ignored.
+  rustfs-init:
+    image: amazon/aws-cli
+    container_name: fleet_rustfs_init
+    depends_on:
+      - rustfs
+    environment:
+      AWS_ACCESS_KEY_ID: ${FLEET_S3_SOFTWARE_INSTALLERS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${FLEET_S3_SOFTWARE_INSTALLERS_SECRET_ACCESS_KEY}
+      AWS_DEFAULT_REGION: us-east-1
+    entrypoint: >
+      /bin/sh -c "
+      aws configure set default.s3.addressing_style path;
+      until aws --endpoint-url http://rustfs:9000 s3 ls; do
+        echo 'waiting for rustfs...'; sleep 2; done;
+      aws --endpoint-url http://rustfs:9000 s3 mb s3://${FLEET_S3_SOFTWARE_INSTALLERS_BUCKET} || true;
+      echo 'bucket ready';
+      "
     networks:
       - app
 
@@ -75,3 +128,5 @@ networks:
 
 volumes:
   mysql_data:
+  rustfs_data:
+  
